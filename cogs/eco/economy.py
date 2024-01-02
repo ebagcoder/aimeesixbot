@@ -57,9 +57,10 @@ class Economy(commands.Cog):
 
         self.user_pets = {}  # Store user's pets
         self.available_pets = {
-            '1': {'name': 'Fluffy', 'image_url': 'https://example.com/fluffy.jpg'},
-            '2': {'name': 'Sparky', 'image_url': 'https://example.com/sparky.jpg'},
-            # Add more pets here
+            '1': {'name': 'Bat', 'image_url': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopBat.png'},
+            '2': {'name': 'Bunny', 'image_url': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopBunny.png'},
+            '3': {'name': 'Cat', 'image_url': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopCat.png'},
+            '4': {'name': 'Mouse', 'image_url': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopMouse.png'}
         }
 
 
