@@ -1,28 +1,10 @@
-from discord.ext import commands
+import sqlite3
+from discord.ext import commands, tasks
 import discord
 import db
 import random
 import asyncio 
-
-class Pet:
-    def __init__(self, name):
-        self.name = name
-        self.happiness = 50
-        self.hunger = 0
-
-    def feed(self):
-        self.hunger = max(0, self.hunger - 10)
-        self.happiness = min(100, self.happiness + 5)
-
-    def pet(self):
-        self.happiness = min(100, self.happiness + 10)
-
-    def find_item(self):
-        if self.happiness > 70 and random.random() > 0.5:
-            return random.choice(list(self.bot.all_shop_items.keys()))  # Returns item IDs
-        return None
-
-
+from datetime import datetime, timedelta
 
 
 
@@ -55,16 +37,9 @@ class Economy(commands.Cog):
 
         self.shop_items = {}
 
-        self.user_pets = {}  # Store user's pets
-        self.available_pets = {
-            '1': {'name': 'Bat', 'image_url': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopBat.png'},
-            '2': {'name': 'Bunny', 'image_url': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopBunny.png'},
-            '3': {'name': 'Cat', 'image_url': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopCat.png'},
-            '4': {'name': 'Mouse', 'image_url': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopMouse.png'}
-        }
 
 
-    @commands.command()
+    @commands.command(aliases=['w', 'job'])
     async def work(self, ctx):
         user_id = ctx.author.id
         earnings = random.randint(10, 100)  # Random earnings between 10 and 100
@@ -88,7 +63,7 @@ class Economy(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.command(aliases=['pay', 'sendsouls'])
     async def give(self, ctx, member: discord.Member, amount: int):
         sender_id = ctx.author.id
         recipient_id = member.id
@@ -103,7 +78,7 @@ class Economy(commands.Cog):
         else:
             await ctx.send("You don't have enough souls.")
 
-    @commands.command(name='balance', aliases=['bal'])
+    @commands.command(aliases=['bal', 'money'])
     async def balance(self, ctx, member: discord.Member = None):
         member = member or ctx.author
         balance = db.get_balance(member.id)
@@ -117,7 +92,7 @@ class Economy(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    @commands.command(name='bal_leaderboard', aliases=['baltop'])
+    @commands.command(aliases=['baltop', 'moneytop'])
     async def bal_leaderboard(self, ctx):
         top_users = db.get_top_users_by_balance()  # This function needs to be implemented in db.py
         leaderboard_description = "\n".join(
@@ -132,7 +107,7 @@ class Economy(commands.Cog):
         )
         embed.set_footer(text="This bot was made by ebagcoder for AimeeSixx")
 
-    @commands.command()
+    @commands.command(aliases=['inv'])
     async def inventory(self, ctx, member: discord.Member = None):
         member = member or ctx.author
         inventory_items = db.get_user_inventory(member.id)  # Fetch inventory items from database
@@ -150,7 +125,7 @@ class Economy(commands.Cog):
             await ctx.send(embed=embed)
 
 
-    @commands.command()
+    @commands.command(aliases=['store'])
     async def shop(self, ctx):
         # Select 4 random items and assign random prices
         selected_items = random.sample(list(self.all_shop_items.values()), 4)
@@ -192,65 +167,6 @@ class Economy(commands.Cog):
                 await ctx.send("You do not have enough souls to purchase this item.")
         else:
             await ctx.send("Item not found in the shop.")           
-
-
-
-    @commands.command()
-    async def show_pets(self, ctx):
-        # Display available pets
-        for pet_id, pet_info in self.available_pets.items():
-            embed = discord.Embed(title=f"{pet_info['name']}", color=discord.Colour.random())
-            embed.set_thumbnail(url=pet_info['image_url'].replace('/blob/', '/raw/'))
-            embed.set_footer(text="Type the name of the pet to adopt it.")
-            await ctx.send(embed=embed)
-
-    @commands.command()
-    async def adopt_pet(self, ctx, pet_name: str):
-        # Find the pet by name
-        pet_info = next((info for info in self.available_pets.values() if info['name'].lower() == pet_name.lower()), None)
-        if not pet_info:
-            await ctx.send("Pet not found.")
-            return
-
-        if ctx.author.id in self.user_pets:
-            await ctx.send("You already have a pet!")
-            return
-
-        pet = Pet(pet_info['name'], pet_info['image_url'])
-        self.user_pets[ctx.author.id] = pet
-        await ctx.send(f"{ctx.author.display_name} has adopted {pet_info['name']}!")
-
-    @commands.command()
-    async def feed_pet(self, ctx):
-        pet = self.user_pets.get(ctx.author.id)
-        if pet:
-            pet.feed()
-            await ctx.send(f"{pet.name} has been fed.")
-        else:
-            await ctx.send("You don't have a pet yet.")
-
-    @commands.command()
-    async def pet_pet(self, ctx):
-        pet = self.user_pets.get(ctx.author.id)
-        if pet:
-            pet.pet()
-            await ctx.send(f"{pet.name} is happy!")
-        else:
-            await ctx.send("You don't have a pet yet.")
-
-    @commands.command()
-    async def pet_search(self, ctx):
-        pet = self.user_pets.get(ctx.author.id)
-        if pet:
-            item_id = pet.find_item()
-            if item_id:
-                item = self.bot.all_shop_items[item_id]
-                db.add_item_to_inventory(ctx.author.id, item['name'])  # Adjust based on your db module
-                await ctx.send(f"{pet.name} found {item['name']}!")
-            else:
-                await ctx.send(f"{pet.name} didn't find anything.")
-        else:
-            await ctx.send("You don't have a pet yet.")
 
 def setup(bot):
     bot.add_cog(Economy(bot))

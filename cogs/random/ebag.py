@@ -10,12 +10,12 @@ class EbagCog(commands.Cog):
     def user_has_allowed_role(self, user_roles):
         return any(role.id in config.ALLOWED_ROLES for role in user_roles)
 
-    @commands.command()
+    @commands.command(aliases=['ebay'])
     async def ebag(self, ctx):
         ebag_message = "Ebag = " + ", ".join(self.ebag_list)
         await ctx.send(ebag_message)
 
-    @commands.command()
+    @commands.command(aliases=['addebay'])
     async def addebag(self, ctx, *, new_entry):
         if not self.user_has_allowed_role(ctx.author.roles):
             await ctx.send("You do not have permission to use this command.")

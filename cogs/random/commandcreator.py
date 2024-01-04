@@ -29,7 +29,7 @@ class SimpleCommands(commands.Cog):
         self.bot.add_command(cmd)
         self.custom_commands[name] = response
 
-    @commands.command(name="createcommand")
+    @commands.command(aliases=['newcommand'])
     async def create_command(self, ctx, command_name: str, *, response: str):
         if not any(role.id in config.ALLOWED_ROLES for role in ctx.author.roles):
             await ctx.send("You do not have permission to use this command.")

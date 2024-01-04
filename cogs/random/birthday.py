@@ -3,6 +3,7 @@ from discord.ext import commands
 import sqlite3
 import random
 from config import ALLOWED_ROLES, BIRTHDAY_CHANNEL_ID
+import datetime
 
 class BirthdayCog(commands.Cog):
     def __init__(self, bot):
@@ -16,7 +17,7 @@ class BirthdayCog(commands.Cog):
         # Check if the command is used in the specified channel
         return ctx.channel.id == BIRTHDAY_CHANNEL_ID
 
-    @commands.command()
+    @commands.command(aliases=['setuserbirthday', 'setbday'])
     async def setuserbday(self, ctx, date_str, member: discord.Member):
         if not self.role_check(ctx.author.roles):
             await ctx.send("You do not have permission to use this command.")
@@ -45,7 +46,7 @@ class BirthdayCog(commands.Cog):
 
         await ctx.send(f"Birthday for {member.mention} set to {formatted_date}.")
 
-    @commands.command()
+    @commands.command(aliases=['removebirthday'])
     async def removebday(self, ctx, member: discord.Member):
         if not self.role_check(ctx.author.roles):
             await ctx.send("You do not have permission to use this command.")
@@ -63,7 +64,7 @@ class BirthdayCog(commands.Cog):
 
         await ctx.send(f"Birthday for {member.mention} removed.")
 
-    @commands.command()
+    @commands.command(aliases=['bday'])
     async def birthday(self, ctx, date, member: discord.Member):
         if not self.channel_check(ctx):
             await ctx.send("This command can only be used in a specific channel.")

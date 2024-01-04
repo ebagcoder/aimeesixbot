@@ -12,7 +12,7 @@ class clearCommands(commands.Cog):
         """Check if the user has any of the allowed roles."""
         return any(role.id in config.ALLOWED_ROLES for role in user.roles)
 
-    @commands.command()
+    @commands.command(aliases=['delmsgs'])
     async def clear(self, ctx, number: int):
         """
         Delete a specified number of messages.
