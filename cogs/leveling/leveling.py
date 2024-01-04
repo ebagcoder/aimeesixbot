@@ -70,7 +70,7 @@ class Leveling(commands.Cog):
             print(f"Added roles for levels up to {new_level} to {member.display_name}.")
 
 
-    @commands.command()
+    @commands.command(aliases=['setlvl'])
     async def setlevel(self, ctx, member: discord.Member, level: int):
         if not self.has_allowed_role(ctx):
             await ctx.send("You don't have permission to use this command.")
@@ -136,7 +136,7 @@ class Leveling(commands.Cog):
         # Save the image
         image.save(save_path)
 
-    @commands.command()
+    @commands.command(aliases=['exp'])
     async def xp(self, ctx, member: discord.Member = None):
         member = member or ctx.author
         user_data = db.get_user_data(member.id)
@@ -207,7 +207,7 @@ class Leveling(commands.Cog):
 
     
 
-    @commands.command()
+    @commands.command(aliases=['resetexp'])
     async def resetxp(self, ctx, member: discord.Member):
         if not self.has_allowed_role(ctx):
             await ctx.send("You don't have permission to use this command.")
@@ -232,7 +232,7 @@ class Leveling(commands.Cog):
         await ctx.send(f"{member.display_name}'s XP has been reset to 0, their level has been set to 0, and level roles have been removed.")
 
 
-    @commands.command()
+    @commands.command(aliases=['leveltop'])
     async def leadb(self, ctx):
         top_users = db.get_top_users(10)
         if not top_users:
@@ -282,7 +282,7 @@ class Leveling(commands.Cog):
         await ctx.send("All specified level roles have been deleted.")
 
 
-    @commands.command()
+    @commands.command(aliases=['addexp'])
     async def addxp(self, ctx, member: discord.Member, xp: int):
         if not self.has_allowed_role(ctx):
             await ctx.send("You don't have permission to use this command.")
@@ -303,7 +303,7 @@ class Leveling(commands.Cog):
         else:
             await ctx.send(f"Added {xp} XP to {member.display_name}. They are now at {new_total_xp} XP.")
 
-    @commands.command()
+    @commands.command(aliases=['removeexp'])
     async def removexp(self, ctx, member: discord.Member, xp: int):
         if not self.has_allowed_role(ctx):
             await ctx.send("You don't have permission to use this command.")

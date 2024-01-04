@@ -39,7 +39,7 @@ class Economy(commands.Cog):
 
 
 
-    @commands.command(aliases=['w', 'job'])
+    @commands.command(aliases=['job'])
     async def work(self, ctx):
         user_id = ctx.author.id
         earnings = random.randint(10, 100)  # Random earnings between 10 and 100
@@ -63,8 +63,8 @@ class Economy(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=['pay', 'sendsouls'])
-    async def give(self, ctx, member: discord.Member, amount: int):
+    @commands.command(aliases=['give', 'sendsouls'])
+    async def pay(self, ctx, member: discord.Member, amount: int):
         sender_id = ctx.author.id
         recipient_id = member.id
         
@@ -72,7 +72,7 @@ class Economy(commands.Cog):
         if db.get_balance(sender_id) >= amount:
             db.update_balance(sender_id, -amount)
             db.update_balance(recipient_id, amount)
-            db.log_transaction(sender_id, -amount, 'give')
+            db.log_transaction(sender_id, -amount, 'sent')
             db.log_transaction(recipient_id, amount, 'receive')
             await ctx.send(f"You gave {member.display_name} {amount} souls.")
         else:
@@ -92,8 +92,8 @@ class Economy(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=['baltop', 'moneytop'])
-    async def bal_leaderboard(self, ctx):
+    @commands.command(aliases=['moneytop'])
+    async def baltop(self, ctx):
         top_users = db.get_top_users_by_balance()  # This function needs to be implemented in db.py
         leaderboard_description = "\n".join(
             f"{idx + 1}. <@{user_id}> - {balance} souls"

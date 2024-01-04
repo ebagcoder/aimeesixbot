@@ -226,7 +226,7 @@ class PetCog(commands.Cog):
             await ctx.send("You don't have a pet yet.")
 
 
-    @commands.command()
+    @commands.command(aliases=['gather'])
     async def hunt(self, ctx):
         pet = self.user_pets.get(ctx.author.id)
         if pet:
