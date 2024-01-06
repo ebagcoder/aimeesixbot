@@ -6,7 +6,28 @@ import random
 import asyncio 
 from datetime import datetime, timedelta
 
+SOUL_AWARD_CHANCE = 0.1  # 10% chance to get souls on each message
+MIN_SOULS = 50
+MAX_SOULS = 150
 
+
+JOBS = {
+    'Hunting': {
+        'earnings': (15, 150),
+        'items': ['Fur', 'Bone', 'Leather'],
+        'image_url': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/notexture.png'
+    },
+    'Mining': {
+        'earnings': (20, 200),
+        'items': ['Coal', 'Iron', 'Gold'],
+        'image_url': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/notexture.png'
+    },
+    'Farming': {
+        'earnings': (10, 120),
+        'items': ['Wheat', 'Corn', 'Vegetables'],
+        'image_url': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/notexture.png'
+    }
+}
 
 class Economy(commands.Cog):
     def __init__(self, bot):
@@ -35,33 +56,154 @@ class Economy(commands.Cog):
             '20': {'name': 'Dark Potion', 'image_url': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/notexture.png'}
         }
 
+    
+
+
         self.shop_items = {}
+
+        self.item_image_urls = {
+            'fur': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/fur.png',
+            'coal': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/coal.png',
+            'wheat': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/wheat.png',
+            'bone': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/bone.png',
+            'leather': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/leather.png',
+            'iron': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/iron.png',
+            'gold': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/gold.png',
+            'corn': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/corn.png',
+            'vegetables': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/vegetables.png',
+            'Unknown Item': 'https://github.com/ebagcoder/aimeebot/blob/main/image/items/notexture.png',
+        }
+
+
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot:
+            return  # Ignore bot messages
+
+        # Randomly award souls with a given chance
+        if random.random() < SOUL_AWARD_CHANCE:
+            # Calculate random amount of souls to award
+            souls_to_award = random.randint(MIN_SOULS, MAX_SOULS)
+            
+            # Update the user's balance in the database
+            db.update_balance(message.author.id, souls_to_award)
+            
+            # Send a message to the channel notifying the user
+            await message.channel.send(f"{message.author.mention} You found {souls_to_award} souls while chatting!")
 
 
 
     @commands.command(aliases=['job'])
     async def work(self, ctx):
         user_id = ctx.author.id
-        earnings = random.randint(10, 100)  # Random earnings between 10 and 100
+        job_type = random.choice(list(JOBS.keys()))
+        job_info = JOBS[job_type]
 
+        # Random earnings and item based on job type
+        earnings = random.randint(*job_info['earnings'])
+        item_gained = random.choice(job_info['items'])
+        
+        # Convert GitHub URL to raw content URL
+        raw_image_url = job_info['image_url'].replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
+        
         # Ensure the user exists in the database and create if not
         if db.get_user_data(user_id) is None:
             db.add_new_user(user_id)
         
         # Update the balance of the user in the database
         db.update_balance(user_id, earnings)
+        # Add the item to the user's inventory in the database
+        db.add_item_to_inventory(user_id, item_gained)
+        
         new_balance = db.get_balance(user_id)  # Get updated balance
-
-        # Create an embed to display the work earnings
+        
+        # Create an embed to display the work earnings and item gained
         embed = discord.Embed(
-            title=f"{ctx.author.display_name}'s Work Earnings",
+            title=f"{ctx.author.display_name}'s {job_type} Results",
+            description=f"While {job_type.lower()}ing, you earned some souls and found an item!",
             color=discord.Colour.random()
         )
+        embed.set_thumbnail(url=raw_image_url)
         embed.add_field(name="Earnings", value=f"{earnings} souls", inline=False)
+        embed.add_field(name="Item Gained", value=item_gained, inline=False)
         embed.add_field(name="New Balance", value=f"{new_balance} souls", inline=False)
         embed.set_footer(text="This bot was made by ebagcoder for AimeeSixx")
-
+        
         await ctx.send(embed=embed)
+
+    @commands.command()
+    async def job_hunt(self, ctx):
+        await self.perform_job(ctx, 'Hunting')
+
+    @commands.command()
+    async def job_mine(self, ctx):
+        await self.perform_job(ctx, 'Mining')
+
+    @commands.command()
+    async def job_farm(self, ctx):
+        await self.perform_job(ctx, 'Farming')
+
+    async def perform_job(self, ctx, job_type):
+        user_id = ctx.author.id
+        job_info = JOBS[job_type]
+
+        # Random earnings and item based on job type
+        earnings = random.randint(*job_info['earnings'])
+        item_gained = random.choice(job_info['items'])
+        
+        # Convert GitHub URL to raw content URL
+        raw_image_url = job_info['image_url'].replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
+        
+        # Ensure the user exists in the database and create if not
+        if db.get_user_data(user_id) is None:
+            db.add_new_user(user_id)
+        
+        # Update the balance of the user in the database
+        db.update_balance(user_id, earnings)
+        # Add the item to the user's inventory in the database
+        db.add_item_to_inventory(user_id, item_gained)
+        
+        new_balance = db.get_balance(user_id)  # Get updated balance
+        
+        # Create an embed to display the work earnings and item gained
+        embed = discord.Embed(
+            title=f"{ctx.author.display_name}'s {job_type} Results",
+            description=f"While {job_type.lower()}ing, you earned some souls and found an item!",
+            color=discord.Colour.random()
+        )
+        embed.set_thumbnail(url=raw_image_url)
+        embed.add_field(name="Earnings", value=f"{earnings} souls", inline=False)
+        embed.add_field(name="Item Gained", value=item_gained, inline=False)
+        embed.add_field(name="New Balance", value=f"{new_balance} souls", inline=False)
+        embed.set_footer(text="This bot was made by ebagcoder for AimeeSixx")
+        
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=['inv'])
+    async def inventory(self, ctx, member: discord.Member = None):
+        member = member or ctx.author
+        inventory_items = db.get_user_inventory(member.id)  # Fetch inventory items from the database
+
+        # Check if the inventory is empty
+        if not inventory_items:
+            await ctx.send(f"{member.display_name} has no items in their inventory.")
+            return
+
+        for item in inventory_items:
+            item_name = item.get('name', 'Unknown Item')  # Safely get the item name
+            item_quantity = item.get('quantity', 0)      # Safely get the item quantity
+            item_image_url = self.get_image_url_for_item(item_name)  # Get the image URL for the item
+
+            embed = discord.Embed(
+                title=f"{member.display_name}'s Inventory",
+                description=f"{item_name}\nQuantity: {item_quantity}",
+                color=discord.Colour.random()
+            )
+            embed.set_image(url=item_image_url)
+            embed.set_footer(text="This bot was made by ebagcoder for AimeeSixx")
+            await ctx.send(embed=embed)
+
 
     @commands.command(aliases=['give', 'sendsouls'])
     async def pay(self, ctx, member: discord.Member, amount: int):
@@ -110,19 +252,30 @@ class Economy(commands.Cog):
     @commands.command(aliases=['inv'])
     async def inventory(self, ctx, member: discord.Member = None):
         member = member or ctx.author
-        inventory_items = db.get_user_inventory(member.id)  # Fetch inventory items from database
+        inventory_items = db.get_user_inventory(member.id)  # Fetch inventory items from the database
 
-        # Check if inventory_items is not empty
+        # Check if the inventory is empty
         if not inventory_items:
             await ctx.send(f"{member.display_name} has no items in their inventory.")
             return
 
+        # URL of the custom-drawn inventory image
+        inventory_image_url = "https://path_to_your_uploaded_inventory_image.png"  # Replace with actual URL
+
+        embed = discord.Embed(
+            title=f"{member.display_name}'s Inventory",
+            color=discord.Colour.random()
+        )
+        embed.set_image(url=inventory_image_url)
+        embed.set_footer(text="This bot was made by ebagcoder for AimeeSixx")
+
+        # Add item details in the embed description
         for item in inventory_items:
-            embed = discord.Embed(title=f"{member.display_name}'s Inventory", description=f"{item['name']}\nQuantity: {item['quantity']}", color=discord.Colour.random())
-            # Assuming each item in inventory_items has 'image_url' key
-            embed.set_image(url=item['image_url'])
-            embed.set_footer(text="This bot was made by ebagcoder for AimeeSixx")
-            await ctx.send(embed=embed)
+            item_name = item.get('name', 'Unknown Item')
+            item_quantity = item.get('quantity', 0)
+            embed.add_field(name=item_name, value=f"Quantity: {item_quantity}", inline=True)
+
+        await ctx.send(embed=embed)
 
 
     @commands.command(aliases=['store'])
