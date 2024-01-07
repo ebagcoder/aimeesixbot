@@ -6,6 +6,9 @@ import random
 import asyncio
 import db
 import config
+from discord.ext.commands import has_permissions, CheckFailure
+import config
+
 
 class Pet:
     def __init__(self, name, image_url, happiness=50, hunger=100, is_alive=True, last_fed=None, last_petted=None, last_search=None):
@@ -33,10 +36,15 @@ class Pet:
         self.name = new_name
 
     def decrease_hunger(self):
+        # Modified to decrease hunger over 2 days instead of every hour
         if self.is_alive:
-            self.hunger = max(0, self.hunger - random.randint(1, 2))
-            if self.hunger == 0:
-                self.is_alive = False
+            # Decrease hunger every hour, so 48 hours would be 2 days
+            if self.last_fed and datetime.now() - self.last_fed >= timedelta(hours=1):
+                self.hunger = max(0, self.hunger - 2)  # Assuming 2 points are decreased every hour
+                self.last_fed = datetime.now()  # Reset the timer after decreasing hunger
+                if self.hunger == 0:
+                    self.is_alive = False
+                    self.death()  # Call the death method when the pet dies
 
     def can_perform_action(self, last_action_time, cooldown_period=timedelta(minutes=5)):
         if last_action_time and datetime.now() - last_action_time < cooldown_period:
@@ -62,14 +70,13 @@ class Pet:
                 return f'Cooldown ({(cooldown_period - time_elapsed).seconds // 60} min left)'
             return 'Ready'
 
-        # Adjusted the Hunt cooldown calculation
-        hunt_cooldown = get_remaining_cooldown(self.last_search)
-
         return {
             'Feed': get_remaining_cooldown(self.last_fed),
             'Pet': get_remaining_cooldown(self.last_petted),
-            'Hunt': hunt_cooldown  # Updated this line
+            'Hunt': get_remaining_cooldown(self.last_search)
         }
+    
+
     def hunt(self):
         if not self.is_alive:
             return None, "Your pet is not alive to hunt.", None
@@ -90,7 +97,33 @@ class Pet:
         cooldown = base_cooldown if not high_reward else base_cooldown + additional_cooldown
         return soul_found, f"Your pet has returned from the hunt!", cooldown
     
+    async def death(self, bot):
+        # Fetch the user with the stored user_id
+        user = bot.get_user(self.user_id)
+        if user:
+            try:
+                # Send a direct message to the user
+                await user.send(f"{user.mention}, your pet {self.name} has passed away.")
+            except Exception as e:
+                print(f"Failed to send death notification to {user.mention}: {e}")
+        else:
+            print(f"Could not find the user (ID: {self.user_id}) to send death notification.")
+
+
+
+
 class PetCog(commands.Cog):
+
+    def has_allowed_role(self, ctx):
+        # Fetch the allowed role IDs from config
+        allowed_role_ids = config.ALLOWED_ROLES
+
+        # Get the role IDs of the user
+        user_role_ids = [role.id for role in ctx.author.roles]
+
+        # Check if the user has any of the allowed roles
+        return any(role_id in user_role_ids for role_id in allowed_role_ids)
+    
     def __init__(self, bot):
         self.bot = bot
         self.db = sqlite3.connect('pet_data.db')  # Ensure this database file exists and is accessible
@@ -130,7 +163,7 @@ class PetCog(commands.Cog):
         ''', (user_id, pet.name, pet.image_url, pet.happiness, pet.hunger, is_alive, last_fed, last_petted, last_search))
         self.db.commit()
 
-    @commands.command(aliases=['pet', 'showmypet'])
+    @commands.command(aliases=['pet'])
     async def show_pets(self, ctx):
         # Display available pets
         for pet_id, pet_info in self.available_pets.items():
@@ -146,21 +179,22 @@ class PetCog(commands.Cog):
     async def adopt_pet(self, ctx, *, pet_name: str):
         # Convert pet_name to lowercase and check if it exists in available_pets
         pet_name = pet_name.lower()
-        pet_info = next((info for key, info in self.available_pets.items() if info['name'].lower() == pet_name), None)
-        
+        pet_info = self.available_pets.get(pet_name)
+
         if pet_info:
             # Check if the author already has a pet
             if ctx.author.id in self.user_pets:
                 await ctx.send("You already have a pet!")
                 return
 
-            # Create a new Pet instance and add it to the user_pets
-            pet = Pet(pet_info['name'], pet_info['image_url'])
+            # Create a new Pet instance with no last_search time to avoid hunt cooldown
+            pet = Pet(pet_info['name'], pet_info['image_url'], last_search=None)
             self.user_pets[ctx.author.id] = pet
             self.save_pet(ctx.author.id, pet)
             await ctx.send(f"{ctx.author.display_name} has adopted a {pet_info['name']}!")
         else:
             await ctx.send("Pet not found.")
+
 
 
 
@@ -192,7 +226,7 @@ class PetCog(commands.Cog):
             await ctx.send("You don't have a pet yet.")
 
 
-    @commands.command(aliases=['renamep', 'renamemypet'])
+    @commands.command(aliases=['renamepet', 'renamemypet'])
     async def rename_pet(self, ctx, new_name: str):
         pet = self.user_pets.get(ctx.author.id)
         if pet:
@@ -205,7 +239,7 @@ class PetCog(commands.Cog):
         else:
             await ctx.send("You don't have a pet to rename.")
 
-    @commands.command(aliases=['viewmypet'])
+    @commands.command(aliases=['viewmypet', 'viewpet', 'showmypet'])
     async def view_pet(self, ctx):
         pet = self.user_pets.get(ctx.author.id)
         if pet:
@@ -226,11 +260,12 @@ class PetCog(commands.Cog):
             await ctx.send("You don't have a pet yet.")
 
 
-    @commands.command(aliases=['gather'])
-    async def hunt(self, ctx):
+    @commands.command(aliases=['forge'])
+    @commands.cooldown(1, 1800, commands.BucketType.user)  # Cooldown of 30 minutes for each user
+    async def gather(self, ctx):
         pet = self.user_pets.get(ctx.author.id)
         if pet:
-            soul_found, result_message, cooldown = pet.hunt()  # Adjusted this line
+            soul_found, result_message, cooldown = pet.hunt()
             if soul_found is not None:
                 # Ensure the user exists in the database and create if not
                 if db.get_user_data(ctx.author.id) is None:
@@ -254,11 +289,23 @@ class PetCog(commands.Cog):
             else:
                 await ctx.send(result_message)
         else:
-            await ctx.send("You don't have a pet to send on a hunt.")
+            await ctx.send("You don't have a pet to send on a quest.")
+
+    
+    @gather.error
+    async def gather_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(f"Your pet is still tired from the last quest. Please wait {int(error.retry_after // 60)} minutes and {int(error.retry_after % 60)} seconds.")
+        else:
+            # Handle other types of errors if necessary
+            raise error
+
 
     @commands.command(aliases=['rsc'])
     async def reset_cooldowns(self, ctx, user: discord.Member = None):
-        # If no user is specified, reset the cooldowns for the command author
+        if not self.has_allowed_role(ctx):
+            await ctx.send("You don't have permission to use this command.")
+            return
         target_user = user or ctx.author
 
         # Find the target user's pet
@@ -275,24 +322,22 @@ class PetCog(commands.Cog):
             await ctx.send(f"{target_user.display_name} does not have a pet.")
 
 
-
-    @tasks.loop(hours=1)
+    @tasks.loop(hours=24)  # Changed to check once a day instead of every hour
     async def decrease_hunger_loop(self):
         for user_id, pet in self.user_pets.items():
             pet.decrease_hunger()
-            self.save_pet(user_id, pet)
+            # If the pet has died, remove it from the user_pets list and delete from the database
+            if not pet.is_alive:
+                self.remove_pet(user_id)
 
-
-    def cog_unload(self):
-        self.decrease_hunger_loop.cancel()
-        for user_id, pet in self.user_pets.items():
-            self.save_pet(user_id, pet)
-        self.db.close()
-
-
-    @commands.Cog.listener()
-    async def on_ready(self):
-        print("Pet Cog is ready!")
+    def remove_pet(self, user_id):
+        # Remove the pet from the user_pets dictionary
+        if user_id in self.user_pets:
+            del self.user_pets[user_id]
+        
+        # Remove the pet's data from the database
+        self.cursor.execute('DELETE FROM pets WHERE user_id = ?', (user_id,))
+        self.db.commit()
 
 def setup(bot):
     bot.add_cog(PetCog(bot))

@@ -5,12 +5,14 @@ import sqlite3
 import db
 from db import initialize_db
 import logging
+from discord.ext.commands import CheckFailure
+from config import ALLOWED_ROLES
 
 logging.basicConfig(level=logging.INFO)
 
 db.initialize_db()
 
-bot = commands.Bot(command_prefix='!')
+bot = commands.Bot(command_prefix='!', case_insensitive=True)
 
 import config
 
@@ -42,6 +44,18 @@ async def on_ready():
 
 initialize_db()
 print("Database initialized.")
+
+def has_allowed_role():
+    async def predicate(ctx):
+        if not ctx.guild:  # Check if command is run in a server
+            raise CheckFailure("This command can only be used in a server.")
+        # Check if any of the allowed roles is in the user's roles
+        if any(role.id in ALLOWED_ROLES for role in ctx.author.roles):
+            return True
+        # If the user does not have the role, raise a CheckFailure
+        raise CheckFailure("You do not have the required role to use this command.")
+    return commands.check(predicate)
+
 
 
 bot.run(config.TOKEN)

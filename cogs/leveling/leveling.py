@@ -20,9 +20,25 @@ LEVEL_ROLES = {
 LEVELS_AND_XP = {'0': 0, '1': 100, '2': 255, '3': 475, '4': 770, '5': 1150, '6': 1625, '7': 2205, '8': 2900, '9': 3720, '10': 4675, '11': 5775, '12': 7030, '13': 8450, '14': 10045, '15': 11825, '16': 13800, '17': 15980, '18': 18375, '19': 20995, '20': 23850, '21': 26950, '22': 30305, '23': 33925, '24': 37820, '25': 42000, '26': 46475, '27': 51255, '28': 56350, '29': 61770, '30': 67525, '31': 73625, '32': 80080, '33': 86900, '34': 94095, '35': 101675, '36': 109650, '37': 118030, '38': 126825, '39': 136045, '40': 145700, '41': 155800, '42': 166355, '43': 177375, '44': 188870, '45': 200850, '46': 213325, '47': 226305, '48': 239800, '49': 253820, '50': 268375, '51': 283475, '52': 299130, '53': 315350, '54': 332145, '55': 349525, '56': 367500, '57': 386080, '58': 405275, '59': 425095, '60': 445550, '61': 466650, '62': 488405, '63': 510825, '64': 533920, '65': 557700, '66': 582175, '67': 607355, '68': 633250, '69': 659870, '70': 687225, '71': 715325, '72': 744180, '73': 773800, '74': 804195, '75': 835375, '76': 867350, '77': 900130, '78': 933725, '79': 968145, '80': 1003400, '81': 1039500, '82': 1076455, '83': 1114275, '84': 1152970, '85': 1192550, '86': 1233025, '87': 1274405, '88': 1316700, '89': 1359920, '90': 1404075, '91': 1449175, '92': 1495230, '93': 1542250, '94': 1590245, '95': 1639225, '96': 1689200, '97': 1740180, '98': 1792175, '99': 1845195, '100': 1899250}
 MAX_LEVEL = 100
 
+
+
 class Leveling(commands.Cog):
+    command_xp_enabled = True
+    disabled_xp_channels = set()
     def __init__(self, bot):
         self.bot = bot
+
+    def has_allowed_role(self, ctx):
+        # Fetch the allowed role IDs from config
+        allowed_role_ids = config.ALLOWED_ROLES
+
+        # Get the role IDs of the user
+        user_role_ids = [role.id for role in ctx.author.roles]
+
+        # Check if the user has any of the allowed roles
+        return any(role_id in user_role_ids for role_id in allowed_role_ids)
+
+
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -69,6 +85,33 @@ class Leveling(commands.Cog):
             await member.add_roles(*roles_to_add)
             print(f"Added roles for levels up to {new_level} to {member.display_name}.")
 
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot:
+            return
+
+        # Check if the message is in a channel where XP is disabled
+        if message.channel.id in Leveling.disabled_xp_channels:
+            return
+
+        # Check if the message starts with the command prefix and if command XP is disabled
+        if not Leveling.command_xp_enabled and message.content.startswith('!'):  # Assuming '!' is your command prefix
+            return
+        
+
+    @commands.command(name='togglecommandxp')
+    async def toggle_command_xp(self, ctx):
+        if not self.has_allowed_role(ctx):
+            await ctx.send("You do not have permission to use this command.")
+            return
+
+        # Toggle the state
+        Leveling.command_xp_enabled = not Leveling.command_xp_enabled
+
+        # Confirm the action to the user
+        state = "enabled" if Leveling.command_xp_enabled else "disabled"
+        await ctx.send(f"XP from command messages has been {state}.")
+
 
     @commands.command(aliases=['setlvl'])
     async def setlevel(self, ctx, member: discord.Member, level: int):
@@ -91,7 +134,30 @@ class Leveling(commands.Cog):
         # Assign roles based on the new level
         await self.assign_level_role(member, level)
 
+    @commands.command(name='toggle_channel_xp')
+    async def toggle_channel_xp(self, ctx, channel_id: int):
+        if not self.has_allowed_role(ctx):
+            await ctx.send("You do not have permission to use this command.")
+            return
 
+        # Toggle the XP state for the channel
+        if channel_id in Leveling.disabled_xp_channels:
+            Leveling.disabled_xp_channels.remove(channel_id)
+            state = "enabled"
+        else:
+            Leveling.disabled_xp_channels.add(channel_id)
+            state = "disabled"
+
+        # Confirm the action to the user
+        await ctx.send(f"XP earning in <#{channel_id}> has been {state}.")
+
+    # Error handler for the toggle_channel_xp command
+    @toggle_channel_xp.error
+    async def toggle_channel_xp_error(self, ctx, error):
+        if isinstance(error, commands.BadArgument):
+            await ctx.send("Please provide a valid channel ID.")
+        else:
+            raise error
 
 
     def calculate_xp(self, message_content, last_message_timestamp):

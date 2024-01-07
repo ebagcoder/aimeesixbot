@@ -1,5 +1,6 @@
 import sqlite3
 from config import DATABASE_PATH
+import json 
 
 def get_db_connection():
     """
@@ -48,6 +49,9 @@ def initialize_db():
 
     conn.commit()
     conn.close()
+
+
+
 
 def add_new_user(user_id):
     """
@@ -189,6 +193,48 @@ def get_user_inventory(user_id):
 
     conn.close()
     return inventory_items
+
+
+def get_server_config(guild_id):
+    """
+    Retrieve server configuration for a specific guild.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM server_config WHERE guild_id = ?", (guild_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        guild_id, allowed_roles, birthday_channel_id, level_up_channel_id = row
+        return {
+            'guild_id': guild_id,
+            'allowed_roles': json.loads(allowed_roles) if allowed_roles else [],
+            'birthday_channel_id': birthday_channel_id,
+            'level_up_channel_id': level_up_channel_id
+        }
+    return None
+
+def set_server_config(guild_id, allowed_roles, birthday_channel_id, level_up_channel_id):
+    """
+    Set server configuration for a specific guild.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    allowed_roles_json = json.dumps(allowed_roles)  # Encode the list of roles as JSON
+    cursor.execute("""
+        INSERT INTO server_config (guild_id, allowed_roles, birthday_channel_id, level_up_channel_id)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(guild_id)
+        DO UPDATE SET 
+            allowed_roles = excluded.allowed_roles,
+            birthday_channel_id = excluded.birthday_channel_id,
+            level_up_channel_id = excluded.level_up_channel_id
+        """, (guild_id, allowed_roles_json, birthday_channel_id, level_up_channel_id))
+    conn.commit()
+    conn.close()
+
+
 
 if __name__ == "__main__":
     initialize_db()

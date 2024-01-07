@@ -6,6 +6,88 @@ import asyncio
 from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
+import db
+import io
+import aiohttp
+import os
+from discord.ext.commands import has_permissions, CheckFailure
+import config
+
+
+
+DATABASE_PATH = 'economy.db'
+
+def get_user_inventory(user_id):
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    # Retrieve inventory items for the user
+    cursor.execute('SELECT item_name, quantity FROM inventory WHERE user_id = ?', (user_id,))
+    inventory = [{'name': row[0], 'quantity': row[1]} for row in cursor.fetchall()]
+    
+    conn.close()
+    return inventory
+
+def update_balance(user_id, amount):
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+
+    # Update the user's balance
+    cursor.execute('UPDATE users SET balance = balance + ? WHERE user_id = ?', (amount, user_id))
+    conn.commit()
+    
+    conn.close()
+
+def get_balance(user_id):
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+
+    # Get the user's current balance
+    cursor.execute('SELECT balance FROM users WHERE user_id = ?', (user_id,))
+    balance = cursor.fetchone()[0]
+    
+    conn.close()
+    return balance
+
+def get_top_users_by_balance(limit=10):
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+
+    # Select the top users by balance, limited by the specified amount
+    cursor.execute('SELECT user_id, balance FROM users ORDER BY balance DESC LIMIT ?', (limit,))
+    top_users = cursor.fetchall()
+    
+    conn.close()
+    return top_users
+
+
+# ... and so on for other database operations ...
+
+# Initialization function to create tables if they don't exist (call this once)
+def initialize_database():
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+
+    # Create tables if they do not exist
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY,
+        balance INTEGER DEFAULT 0
+    )''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS inventory (
+        user_id INTEGER,
+        item_name TEXT,
+        quantity INTEGER,
+        FOREIGN KEY(user_id) REFERENCES users(user_id)
+    )''')
+
+    conn.commit()
+    conn.close()
+
+# Call this function somewhere in your bot setup code
+initialize_database()
 
 SOUL_AWARD_CHANCE = 0.05  # 10% chance to get souls on each message
 MIN_SOULS = 10
@@ -62,88 +144,16 @@ class Economy(commands.Cog):
 
         self.shop_items = {}
 
-        self.item_image_urls = {
-            'fur': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/items/fur.png',
-            'coal': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/items/coal.png',
-            'wheat': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/items/wheat.png',
-            'bone': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/items/bone.png',
-            'leather': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/items/leather.png',
-            'iron': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/items/iron.png',
-            'gold': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/items/gold.png',
-            'corn': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/items/corn.png',
-            'vegetables': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/items/vegetables.png',
-            'Unknown Item': 'https://github.com/ebagcoder/aimeesixbot/blob/main/image/items/texturenotfound.png',
-        }
 
-    # Function to fetch an image from a URL
-    def fetch_image(url):
-        response = requests.get(url)
-        response.raise_for_status()  # Ensure the request was successful
-        return Image.open(BytesIO(response.content))
+    def has_allowed_role(self, ctx):
+        # Fetch the allowed role IDs from config
+        allowed_role_ids = config.ALLOWED_ROLES
 
-    # Function to overlay item images and quantities onto the base inventory image
-    async def create_inventory_image(self, inventory_items):
-        # URL of the base inventory image
-        base_image_url = "https://raw.githubusercontent.com/ebagcoder/aimeesixbot/main/image/gui/inventory.png"
-        
-        # Retrieve the base inventory image from the URL
-        response = requests.get(base_image_url)
-        base_image = Image.open(BytesIO(response.content))
+        # Get the role IDs of the user
+        user_role_ids = [role.id for role in ctx.author.roles]
 
-        # Define positions for the first slot (you'll need to adjust these)
-        slot_positions = [(x, y) for y in range(0, 300, 50) for x in range(0, 300, 50)]
-
-        for index, item in enumerate(inventory_items):
-            if index < len(slot_positions):
-                item_name = item['name'].lower()  # Ensure item names are in lower case to match keys
-                item_quantity = item['quantity']
-                item_image_url = self.item_image_urls.get(item_name)
-
-                if item_image_url:
-                    # Fetch and resize the item image
-                    item_image = Image.open(BytesIO(requests.get(item_image_url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')).content))
-                    item_image.thumbnail((50, 50), Image.ANTIALIAS)  # Resize the item image to fit the slot
-
-                    # Position the item image onto the base inventory image
-                    base_image.paste(item_image, slot_positions[index], item_image)
-
-                    # Draw the quantity number
-                    draw = ImageDraw.Draw(base_image)
-                    font_size = 14  # Font size for quantity numbers
-                    font = ImageFont.truetype("arial.ttf", font_size)  # Load a truetype font
-                    text_pos = (slot_positions[index][0] + 35, slot_positions[index][1] + 35)  # Position for quantity text
-                    draw.text(text_pos, str(item_quantity), font=font, fill='white')
-
-        # Save the edited image to a bytes buffer
-        final_buffer = BytesIO()
-        base_image.save(final_buffer, 'PNG')
-        final_buffer.seek(0)
-
-        return final_buffer
-
-    # URL for the base inventory image and a dictionary mapping item names to their image URLs
-    base_inventory_url = "https://raw.githubusercontent.com/ebagcoder/aimeesixbot/main/image/gui/inventory.png"
-    item_images = {
-        'ItemName1': 'https://example.com/path/to/item1.png',  # Replace with actual item image URLs
-        'ItemName2': 'https://example.com/path/to/item2.png',
-        # Add more items as needed
-    }
-
-    # Sample inventory data, replace with actual inventory data retrieval logic
-    inventory_items = {
-        'ItemName1': 42,
-        'ItemName2': 16,
-        # Add more items as needed
-    }
-
-    # Create the inventory image
-    inventory_image_bytes = create_inventory_image(base_inventory_url, inventory_items, item_images)
-
-    # Show the image (for testing purposes)
-    # In actual bot usage, you would send this image in a Discord message instead
-    Image.open(inventory_image_bytes).show()
-
-
+        # Check if the user has any of the allowed roles
+        return any(role_id in user_role_ids for role_id in allowed_role_ids)
 
 
     @commands.Cog.listener()
@@ -165,6 +175,7 @@ class Economy(commands.Cog):
 
 
     @commands.command(aliases=['job'])
+    @commands.cooldown(1, 3600, commands.BucketType.user)  # One hour cooldown per user
     async def work(self, ctx):
         user_id = ctx.author.id
         job_type = random.choice(list(JOBS.keys()))
@@ -201,6 +212,15 @@ class Economy(commands.Cog):
         embed.set_footer(text="This bot was made by ebagcoder for AimeeSixx")
         
         await ctx.send(embed=embed)
+
+    # Error handler for the work command
+    @work.error
+    async def work_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(f"You are too tired to work right now. Try again in {error.retry_after:.2f} seconds.")
+        else:
+            # Handle other types of errors if necessary
+            raise error
 
     @commands.command()
     async def job_hunt(self, ctx):
@@ -250,30 +270,6 @@ class Economy(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=['inv'])
-    async def inventory(self, ctx, member: discord.Member = None):
-        member = member or ctx.author
-        inventory_items = db.get_user_inventory(member.id)  # Fetch inventory items from the database
-
-        # Check if the inventory is empty
-        if not inventory_items:
-            await ctx.send(f"{member.display_name} has no items in their inventory.")
-            return
-
-        for item in inventory_items:
-            item_name = item.get('name', 'Unknown Item')  # Safely get the item name
-            item_quantity = item.get('quantity', 0)      # Safely get the item quantity
-            item_image_url = self.get_image_url_for_item(item_name)  # Get the image URL for the item
-
-            embed = discord.Embed(
-                title=f"{member.display_name}'s Inventory",
-                description=f"{item_name}\nQuantity: {item_quantity}",
-                color=discord.Colour.random()
-            )
-            embed.set_image(url=item_image_url)
-            embed.set_footer(text="This bot was made by ebagcoder for AimeeSixx")
-            await ctx.send(embed=embed)
-
 
     @commands.command(aliases=['give', 'sendsouls'])
     async def pay(self, ctx, member: discord.Member, amount: int):
@@ -306,7 +302,7 @@ class Economy(commands.Cog):
 
     @commands.command(aliases=['moneytop'])
     async def baltop(self, ctx):
-        top_users = db.get_top_users_by_balance()  # This function needs to be implemented in db.py
+        top_users = db.get_top_users_by_balance()  # Make sure this function is implemented and returns a list of (user_id, balance)
         leaderboard_description = "\n".join(
             f"{idx + 1}. <@{user_id}> - {balance} souls"
             for idx, (user_id, balance) in enumerate(top_users)
@@ -318,55 +314,9 @@ class Economy(commands.Cog):
             color=discord.Colour.random()
         )
         embed.set_footer(text="This bot was made by ebagcoder for AimeeSixx")
+        await ctx.send(embed=embed)  # Make sure to actually send the embed
 
-    async def create_inventory_image(self, inventory_items):
-        # URL of the base inventory image
-        base_image_url = "https://raw.githubusercontent.com/ebagcoder/aimeesixbot/main/image/gui/inventory.png"
-        
-        # Retrieve the base inventory image from the URL
-        response = requests.get(base_image_url)
-        base_image = Image.open(io.BytesIO(response.content))
-        draw = ImageDraw.Draw(base_image)
-        font = ImageFont.load_default()  # Load default font
-        
-        # Define positions for the first slot (you'll need to adjust these)
-        start_x, start_y = 10, 10
-        slot_width, slot_height = 64, 64  # Update with your slot dimensions
-        items_per_row = 9  # Update with the number of slots per row in your image
 
-        # Draw each item name and quantity on the image
-        for index, item in enumerate(inventory_items):
-            x = start_x + (index % items_per_row) * slot_width
-            y = start_y + (index // items_per_row) * slot_height
-            item_name = item.get('name', 'Unknown Item')
-            item_quantity = item.get('quantity', 0)
-            draw.text((x, y), f"{item_name}\n{item_quantity}", fill='black', font=font)
-
-        # Save the edited image to a bytes buffer
-        final_buffer = io.BytesIO()
-        base_image.save(final_buffer, 'PNG')
-        final_buffer.seek(0)
-
-        return final_buffer
-
-    @commands.command(aliases=['inv'])
-    async def inventory(self, ctx, member: discord.Member = None):
-        member = member or ctx.author
-        inventory_items = db.get_user_inventory(member.id)  # Fetch inventory items from the database
-
-        # Generate the inventory image with items
-        inventory_image_bytes = await self.create_inventory_image(inventory_items)
-
-        # Create a file from the in-memory image
-        inventory_image_file = discord.File(fp=inventory_image_bytes, filename='inventory.png')
-
-        # Create the embed with the new image
-        embed = discord.Embed(title=f"{member.display_name}'s Inventory", color=discord.Colour.random())
-        embed.set_image(url='attachment://inventory.png')
-        embed.set_footer(text="This bot was made by ebagcoder for AimeeSixx")
-
-        # Send the embed with the image
-        await ctx.send(file=inventory_image_file, embed=embed)
 
     @commands.command(aliases=['store'])
     async def shop(self, ctx):
