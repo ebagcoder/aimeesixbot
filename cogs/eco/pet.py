@@ -134,7 +134,11 @@ class PetCog(commands.Cog):
             'bat': {'name': 'Bat', 'image_url': 'https://raw.githubusercontent.com/ebagcoder/aimeesixbot/main/image/pets/PetShopBat.png'},
             'bunny': {'name': 'Bunny', 'image_url': 'https://raw.githubusercontent.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopBunny.png'},
             'cat': {'name': 'Cat', 'image_url': 'https://raw.githubusercontent.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopCat.png'},
-            'mouse': {'name': 'Mouse', 'image_url': 'https://raw.githubusercontent.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopMouse.png'}
+            'mouse': {'name': 'Mouse', 'image_url': 'https://raw.githubusercontent.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopMouse.png'},
+            'turtle': {'name': 'Turtle', 'image_url': 'https://raw.githubusercontent.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopTurtle.png'},
+            'sloth': {'name': 'Magical Sloth', 'image_url': 'https://raw.githubusercontent.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopBunny.png'},
+            'reaper': {'name': 'Grim Reaper', 'image_url': 'https://raw.githubusercontent.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopCat.png'},
+            'angel': {'name': 'Dark Fallen Angel', 'image_url': 'https://raw.githubusercontent.com/ebagcoder/aimeesixbot/blob/main/image/pets/PetShopMouse.png'}
         }
 
 
